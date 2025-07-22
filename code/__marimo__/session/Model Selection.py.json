@@ -1,0 +1,59 @@
+{
+  "version": "1",
+  "metadata": {
+    "marimo_version": "0.14.10"
+  },
+  "cells": [
+    {
+      "id": "Hbol",
+      "code_hash": "257fc7f9cc9904f917dd2bb75a66da2f",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "lNET",
+      "code_hash": "18b3b34f3fc28caee4c9b1c21e97652c",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<span class=\"markdown prose dark:prose-invert\"><h2 id=\"hdbscan-clustering-enhanced-by-umap\">HDBSCAN clustering enhanced by UMAP</h2></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "dXtW",
+      "code_hash": null,
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "xfLN",
+      "code_hash": "0125481fe325efeb9f3d8c4842388963",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<span class=\"markdown prose dark:prose-invert\"><h2 id=\"plot-metrics\">Plot metrics</h2></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "oKIK",
+      "code_hash": null,
+      "outputs": [],
+      "console": []
+    }
+  ]
+}
