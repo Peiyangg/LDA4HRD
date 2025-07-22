@@ -77,7 +77,7 @@ def _(correlation_analysis, ctvalues_list, reorder_grouped_DMP):
 
 @app.cell
 def _(mo):
-    mo.md(r"""## Categorical Comparisons""")
+    mo.md(r"""## PERMANOVA""")
     return
 
 
@@ -108,14 +108,306 @@ def _(DistanceMatrix, distance_matrix, grouping, metadata, np, permanova):
 
 
 @app.cell
-def _():
+def _(mo):
+    mo.md(r"""## MC Distribution Difference""")
     return
 
 
 @app.cell
-def _(mo):
-    mo.md(r"""## MC Distribution Difference""")
-    return
+def _():
+    import scipy.stats as stats
+    from scikit_posthocs import posthoc_dunn
+    return posthoc_dunn, stats
+
+
+@app.cell
+def _(pd, posthoc_dunn, stats):
+    def analyze_topic_sets(dfs):
+        """
+        Analyze topic sets across all time periods and return two DataFrames:
+        1. All results (regardless of significance)
+        2. Only significant positive results (Dunn p-value < 0.05)
+        """
+        # Define time periods and their corresponding keys
+        periods = {
+            "First SampleTime": ['Infected_1st', 'Intermediate_1st', 'Healthy_1st'],
+            "Early Stage": ['Infected_es', 'Intermediate_es', 'Healthy_es'],
+            "Transition Stage": ['Infected_ts', 'Intermediate_ts', 'Healthy_ts'],
+            "Late Stage": ['Infected_ls', 'Intermediate_ls', 'Healthy_ls']
+        }
+
+        all_results = []
+
+        for period_name, period_keys in periods.items():
+            # Get DataFrames for this period
+            period_dfs = {k: dfs[k] for k in period_keys if k in dfs}
+
+            if not period_dfs:  # Skip if no data for this period
+                continue
+
+            print(f"\nAnalyzing {period_name}")
+
+            # Get subgroups (columns) from the first available DataFrame
+            subgroups = list(period_dfs[list(period_dfs.keys())[0]].columns)
+
+            for subgroup_name in subgroups:
+                # Prepare data for this subgroup
+                subgroup_data = []
+                group_labels = []
+
+                for group_name, df in period_dfs.items():
+                    subgroup_data.extend(df[subgroup_name].values)
+                    group_labels.extend([group_name] * len(df))
+
+                analysis_df = pd.DataFrame({
+                    'Group': group_labels,
+                    'MC_Prob': subgroup_data
+                })
+
+                # Perform Kruskal-Wallis test
+                groups = [group[1]['MC_Prob'].values for group in analysis_df.groupby('Group')]
+                h_stat, kw_p_value = stats.kruskal(*groups)
+
+                # Always perform post-hoc tests and calculate effect sizes
+                if len(groups) > 1:  # Need at least 2 groups for comparison
+                    try:
+                        # Dunn's test
+                        dunn_results = posthoc_dunn(analysis_df, val_col='MC_Prob', 
+                                                  group_col='Group', p_adjust='bonferroni')
+
+                        # Calculate effect sizes
+                        effect_sizes = calculate_effect_sizes(analysis_df)
+
+                        # Get all pairwise comparisons
+                        unique_groups = sorted(analysis_df['Group'].unique())
+                        for i, g1 in enumerate(unique_groups):
+                            for g2 in unique_groups[i+1:]:
+                                dunn_p = dunn_results.loc[g1, g2] if g1 in dunn_results.index and g2 in dunn_results.columns else float('nan')
+                                effect_size = effect_sizes.loc[g1, g2] if g1 in effect_sizes.index and g2 in effect_sizes.columns else float('nan')
+
+                                all_results.append({
+                                    'Period': period_name,
+                                    'MC': subgroup_name,
+                                    'Group1': g1,
+                                    'Group2': g2,
+                                    'H_statistic': round(h_stat, 6),
+                                    'KW_pvalue': round(kw_p_value, 6),
+                                    'Dunn_pvalue': round(dunn_p, 6) if not pd.isna(dunn_p) else dunn_p,
+                                    'Effect_size': round(effect_size, 6) if not pd.isna(effect_size) else effect_size,
+                                    'Effect_interpretation': interpret_effect_size(effect_size) if not pd.isna(effect_size) else 'Unknown'
+                                })
+
+                    except Exception as e:
+                        print(f"Error processing {period_name} - {subgroup_name}: {e}")
+                        continue
+
+        # Convert to DataFrame
+        all_results_df = pd.DataFrame(all_results)
+
+        # Create significant results DataFrame (Dunn p-value < 0.05)
+        significant_results_df = all_results_df[
+            (all_results_df['Dunn_pvalue'] < 0.05) & 
+            (~all_results_df['Dunn_pvalue'].isna())
+        ].copy()
+
+        # Set display options for better formatting
+        pd.set_option('display.float_format', lambda x: '{:.6f}'.format(x))
+
+        return all_results_df, significant_results_df
+
+    def calculate_effect_sizes(df):
+        """
+        Calculates Cliff's Delta effect size for all group pairs
+        """
+        groups = sorted(df['Group'].unique())
+        effect_sizes = pd.DataFrame(index=groups, columns=groups, dtype=float)
+
+        for g1 in groups:
+            for g2 in groups:
+                if g1 < g2:
+                    x = df[df['Group'] == g1]['MC_Prob'].values
+                    y = df[df['Group'] == g2]['MC_Prob'].values
+                    delta = cliffs_delta(x, y)
+                    effect_sizes.loc[g1, g2] = delta
+                    effect_sizes.loc[g2, g1] = -delta
+                elif g1 == g2:
+                    effect_sizes.loc[g1, g2] = 0.0
+
+        return effect_sizes
+
+    def cliffs_delta(x, y):
+        """
+        Calculates Cliff's Delta effect size
+        """
+        if len(x) == 0 or len(y) == 0:
+            return float('nan')
+
+        nx = len(x)
+        ny = len(y)
+        dominance = 0
+
+        for i in x:
+            for j in y:
+                if i > j:
+                    dominance += 1
+                elif i < j:
+                    dominance -= 1
+
+        return dominance / (nx * ny)
+
+    def interpret_effect_size(delta):
+        """
+        Interprets Cliff's Delta effect size
+        """
+        if pd.isna(delta):
+            return "Unknown"
+
+        abs_delta = abs(delta)
+        if abs_delta < 0.147:
+            return "Negligible"
+        elif abs_delta < 0.33:
+            return "Small"
+        elif abs_delta < 0.474:
+            return "Medium"
+        else:
+            return "Large"
+    return (
+        analyze_topic_sets,
+        calculate_effect_sizes,
+        cliffs_delta,
+        interpret_effect_size,
+    )
+
+
+@app.cell(hide_code=True)
+def _(DMP, metadata):
+    # data for small multiples
+    infected_1 = metadata[
+       (metadata['Greenhouse'].isin([1, 4, 5, 7])) & 
+       (metadata['SampleTime'].isin([1]))
+    ].index.tolist()
+
+    infected_es = metadata[
+       (metadata['Greenhouse'].isin([1, 4, 5, 7])) & 
+       (metadata['SampleTime'].isin([1,2]))
+    ].index.tolist()
+
+    infected_ts = metadata[
+       (metadata['Greenhouse'].isin([1, 4, 5, 7])) & 
+       (metadata['SampleTime'].isin([3]))
+    ].index.tolist()
+
+    infected_ls = metadata[
+       (metadata['Greenhouse'].isin([1, 4, 5, 7])) & 
+       (metadata['SampleTime'].isin([4,5]))
+    ].index.tolist()
+
+
+
+    healthy_1 = metadata[
+       (metadata['Greenhouse'].isin([8, 9, 10, 11])) & 
+       (metadata['SampleTime'].isin([1]))
+    ].index.tolist()
+
+    healthy_es = metadata[
+       (metadata['Greenhouse'].isin([8, 9, 10, 11])) & 
+       (metadata['SampleTime'].isin([1,2]))
+    ].index.tolist()
+
+    healthy_ts = metadata[
+       (metadata['Greenhouse'].isin([8, 9, 10, 11])) & 
+       (metadata['SampleTime'].isin([3]))
+    ].index.tolist()
+
+    healthy_ls = metadata[
+       (metadata['Greenhouse'].isin([8, 9, 10, 11])) & 
+       (metadata['SampleTime'].isin([4,5]))
+    ].index.tolist()
+
+
+    intermediate_1 = metadata[
+       (metadata['Greenhouse'].isin([2, 3, 6, 12])) & 
+       (metadata['SampleTime'].isin([1]))
+    ].index.tolist()
+
+    intermediate_es = metadata[
+       (metadata['Greenhouse'].isin([2, 3, 6, 12])) & 
+       (metadata['SampleTime'].isin([1,2]))
+    ].index.tolist()
+
+    intermediate_ts = metadata[
+       (metadata['Greenhouse'].isin([2, 3, 6, 12])) & 
+       (metadata['SampleTime'].isin([3]))
+    ].index.tolist()
+
+    intermediate_ls = metadata[
+       (metadata['Greenhouse'].isin([2, 3, 6, 12])) & 
+       (metadata['SampleTime'].isin([4,5]))
+    ].index.tolist()
+
+
+    df_infected_1st = DMP.loc[infected_1]
+    df_infected_es = DMP.loc[infected_es]
+    df_infected_ts = DMP.loc[infected_ts]
+    df_infected_ls = DMP.loc[infected_ls]
+
+    df_healthy_1st = DMP.loc[healthy_1]
+    df_healthy_es = DMP.loc[healthy_es]
+    df_healthy_ts = DMP.loc[healthy_ts]
+    df_healthy_ls = DMP.loc[healthy_ls]
+
+    df_intermediate_1st = DMP.loc[intermediate_1]
+    df_intermediate_es = DMP.loc[intermediate_es]
+    df_intermediate_ts = DMP.loc[intermediate_ts]
+    df_intermediate_ls = DMP.loc[intermediate_ls]
+
+    dfs = {
+        'Infected_1st': df_infected_1st,
+        'Intermediate_1st': df_intermediate_1st,
+        'Healthy_1st': df_healthy_1st,
+        'Infected_es': df_infected_es,
+        'Intermediate_es': df_intermediate_es,
+        'Healthy_es': df_healthy_es,
+        'Infected_ts': df_infected_ts,
+        'Intermediate_ts': df_intermediate_ts,
+        'Healthy_ts': df_healthy_ts,    
+        'Infected_ls': df_infected_ls,
+        'Intermediate_ls': df_intermediate_ls,
+        'Healthy_ls': df_healthy_ls,
+    }
+    return (
+        df_healthy_1st,
+        df_healthy_es,
+        df_healthy_ls,
+        df_healthy_ts,
+        df_infected_1st,
+        df_infected_es,
+        df_infected_ls,
+        df_infected_ts,
+        df_intermediate_1st,
+        df_intermediate_es,
+        df_intermediate_ls,
+        df_intermediate_ts,
+        dfs,
+        healthy_1,
+        healthy_es,
+        healthy_ls,
+        healthy_ts,
+        infected_1,
+        infected_es,
+        infected_ls,
+        infected_ts,
+        intermediate_1,
+        intermediate_es,
+        intermediate_ls,
+        intermediate_ts,
+    )
+
+
+@app.cell
+def _(analyze_topic_sets, dfs):
+    all_results, significant_results = analyze_topic_sets(dfs)
+    return all_results, significant_results
 
 
 @app.cell
@@ -385,8 +677,6 @@ def _(
         'ratio': mod_h_ls_df + mod_inb_ls_df + mod_inf_ls_df,
         'Greenhouse': ['healthy'] * len(mod_h_ls_df) + ['intermediate'] * len(mod_inb_ls_df) + ['infected'] * len(mod_inf_ls_df)
     })
-
-
     return (
         index_h_l,
         index_inb_l,
@@ -516,7 +806,7 @@ def _(np, pd, plt, sns):
     return (create_boxplot_with_stats,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(
     dropdown_denominator,
     dropdown_numerator,
@@ -647,8 +937,266 @@ def _(
 
 
 @app.cell
-def _():
+def _(mo):
+    mo.md(r"""### Statstics tests""")
     return
+
+
+@app.cell
+def kruskal_wallis_analysis():
+    def kruskal_wallis_analysis(df, value_col='values', category_col='category'):
+        """
+        Perform Kruskal-Wallis test with post-hoc pairwise comparisons and multiple testing correction.
+        Parameters:
+        -----------
+        df : pandas.DataFrame
+            Input dataframe
+        value_col : str, default 'values'
+            Name of the column containing values
+        category_col : str, default 'category'
+            Name of the column containing categories
+        Returns:
+        --------
+        dict : Dictionary containing test results
+        """
+        import pandas as pd
+        import numpy as np
+        from scipy import stats
+        from scipy.stats import kruskal
+        from statsmodels.stats.multitest import multipletests
+    
+        # Clean the data - remove infinite values
+        df_clean = df.replace([np.inf, -np.inf], np.nan).dropna()
+    
+        # Get the three categories
+        categories = df_clean[category_col].unique()
+    
+        # Prepare data for Kruskal-Wallis test
+        group_data = []
+        for category in categories:
+            group_values = df_clean[df_clean[category_col] == category][value_col].values
+            group_data.append(group_values)
+    
+        # Perform Kruskal-Wallis test
+        kw_stat, kw_pvalue = kruskal(*group_data)
+    
+        # Initialize results dictionary
+        results = {
+            'kw_statistic': kw_stat,
+            'kw_pvalue': kw_pvalue,
+            'significant': kw_pvalue < 0.05,
+            'pairwise_results': None,
+            'summary_stats': None
+        }
+    
+        # If significant, perform post-hoc pairwise comparisons
+        if kw_pvalue < 0.05:
+            # Pairwise comparisons
+            pairwise_results = []
+            pairs = []
+            u_statistics = []
+            for i in range(len(categories)):
+                for j in range(i+1, len(categories)):
+                    cat1, cat2 = categories[i], categories[j]
+                    group1 = df_clean[df_clean[category_col] == cat1][value_col]
+                    group2 = df_clean[df_clean[category_col] == cat2][value_col]
+                
+                    # Mann-Whitney U test
+                    u_stat, p_val = stats.mannwhitneyu(group1, group2, alternative='two-sided')
+                    pairwise_results.append(p_val)
+                    pairs.append(f"{cat1} vs {cat2}")
+                    u_statistics.append(u_stat)
+        
+            # Multiple testing correction (Bonferroni)
+            corrected_pvals = multipletests(pairwise_results, method='bonferroni')[1]
+        
+            pairwise_df = pd.DataFrame({
+                'comparison': pairs,
+                'U_statistic': u_statistics,
+                'original_pvalue': pairwise_results,
+                'corrected_pvalue': corrected_pvals,
+                'significant': corrected_pvals < 0.05
+            })
+        
+            results['pairwise_results'] = pairwise_df
+    
+        # Summary statistics
+        summary_stats = df_clean.groupby(category_col)[value_col].agg(['count', 'median', 'mean', 'std']).round(3)
+        results['summary_stats'] = summary_stats
+    
+        return results
+    return (kruskal_wallis_analysis,)
+
+
+@app.cell
+def _(
+    kruskal_wallis_analysis,
+    mod_combined_es_df,
+    mod_combined_ls_df,
+    mod_combined_ts_df,
+    multipletests,
+    np,
+    pd,
+    rel_combined_es_df,
+    rel_combined_es_df_pse,
+    rel_combined_ls_df,
+    rel_combined_ls_df_pse,
+    rel_combined_ts_df,
+    rel_combined_ts_df_pse,
+    stats,
+):
+    # Define your dataframes and their stages
+    datasets = [
+        (rel_combined_es_df, "ES", "rel"),
+        (rel_combined_ts_df, "TS", "rel"), 
+        (rel_combined_ls_df, "LS", "rel"),
+        (rel_combined_es_df_pse, "ES", "rel_pse"),
+        (rel_combined_ts_df_pse, "TS", "rel_pse"), 
+        (rel_combined_ls_df_pse, "LS", "rel_pse"),
+        (mod_combined_es_df, "ES", "mod"),
+        (mod_combined_ts_df, "TS", "mod"), 
+        (mod_combined_ls_df, "LS", "mod")
+    ]
+
+    # Run KW-test for each dataset and collect ALL results
+    all_kw_results = []
+    all_pairwise_results = []
+
+    for df, stage, dataset_type in datasets:
+        # Clean data first to get accurate sample sizes
+        df_clean = df.replace([np.inf, -np.inf], np.nan).dropna()
+        conditions = df_clean['Greenhouse'].unique()
+
+        # Run KW-test
+        results = kruskal_wallis_analysis(df, value_col='ratio', category_col='Greenhouse')
+
+        # Store main KW results
+        main_result = {
+            'dataset': dataset_type,
+            'stage': stage,
+            'dataset_stage': f"{dataset_type}_{stage}",
+            'n_total': len(df_clean),
+            'n_conditions': len(conditions),
+            'conditions': ', '.join(sorted(conditions)),
+            'kw_statistic': results['kw_statistic'],
+            'kw_pvalue': results['kw_pvalue'],
+            'kw_significant': results['significant'],
+            'kw_effect_size': results['kw_statistic'] / (len(df_clean) - 1)  # eta-squared approximation
+        }
+
+        # Add sample sizes per condition
+        for condition in sorted(conditions):
+            n_condition = len(df_clean[df_clean['Greenhouse'] == condition])
+            main_result[f'n_{condition}'] = n_condition
+
+        all_kw_results.append(main_result)
+
+        # Store pairwise results - ALWAYS, whether KW is significant or not
+        if len(conditions) >= 2:  # Need at least 2 groups for pairwise comparisons
+            import itertools
+
+            # Calculate all pairwise comparisons manually to ensure we get everything
+            pairwise_data = []
+            raw_pvalues = []
+
+            for cond1, cond2 in itertools.combinations(sorted(conditions), 2):
+                group1 = df_clean[df_clean['Greenhouse'] == cond1]['ratio']
+                group2 = df_clean[df_clean['Greenhouse'] == cond2]['ratio']
+
+                # Mann-Whitney U test
+                u_stat, p_val = stats.mannwhitneyu(group1, group2, alternative='two-sided')
+
+                # Effect size (r = Z / sqrt(N))
+                z_score = stats.norm.ppf(1 - p_val/2)  # approximate z-score
+                effect_size = abs(z_score) / np.sqrt(len(group1) + len(group2))
+
+                pair_result = {
+                    'dataset': dataset_type,
+                    'stage': stage,
+                    'dataset_stage': f"{dataset_type}_{stage}",
+                    'comparison': f"{cond1} vs {cond2}",
+                    'condition_1': cond1,
+                    'condition_2': cond2,
+                    'n_group1': len(group1),
+                    'n_group2': len(group2),
+                    'median_group1': group1.median(),
+                    'median_group2': group2.median(),
+                    'U_statistic': u_stat,
+                    'original_pvalue': p_val,
+                    'effect_size_r': effect_size
+                }
+
+                pairwise_data.append(pair_result)
+                raw_pvalues.append(p_val)
+
+            # Apply FDR multiple testing correction
+            if raw_pvalues:
+                # FDR correction only
+                fdr_corrected = multipletests(raw_pvalues, method='fdr_bh')[1]
+
+                # Add corrected p-values to results
+                for i, pair_result in enumerate(pairwise_data):
+                    pair_result['fdr_pvalue'] = fdr_corrected[i]
+                    pair_result['fdr_significant'] = fdr_corrected[i] < 0.05
+                    pair_result['uncorrected_significant'] = raw_pvalues[i] < 0.05
+
+                    # Significance stars based on FDR-corrected p-values
+                    fdr_p = fdr_corrected[i]
+                    if fdr_p < 0.001:
+                        pair_result['significance'] = '***'
+                    elif fdr_p < 0.01:
+                        pair_result['significance'] = '**'
+                    elif fdr_p < 0.05:
+                        pair_result['significance'] = '*'
+                    else:
+                        pair_result['significance'] = 'ns'
+
+            all_pairwise_results.extend(pairwise_data)
+
+    # 1. Main KW-test results
+    kw_summary_df = pd.DataFrame(all_kw_results)
+
+    # 2. ALL pairwise comparison results
+    pairwise_summary_df = pd.DataFrame(all_pairwise_results)
+
+    # Significant KW tests
+    sig_kw = kw_summary_df[kw_summary_df['kw_significant'] == True]
+
+    # Significant pairwise (FDR only)
+    sig_pairs_fdr = pairwise_summary_df[pairwise_summary_df['fdr_significant'] == True]
+    return (
+        all_kw_results,
+        all_pairwise_results,
+        cond1,
+        cond2,
+        condition,
+        conditions,
+        dataset_type,
+        datasets,
+        df,
+        df_clean,
+        effect_size,
+        fdr_corrected,
+        fdr_p,
+        group1,
+        group2,
+        i,
+        itertools,
+        kw_summary_df,
+        main_result,
+        n_condition,
+        p_val,
+        pair_result,
+        pairwise_data,
+        pairwise_summary_df,
+        raw_pvalues,
+        results,
+        sig_kw,
+        sig_pairs_fdr,
+        stage,
+        u_stat,
+        z_score,
+    )
 
 
 @app.cell

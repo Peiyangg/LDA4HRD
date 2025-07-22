@@ -32,7 +32,7 @@
     },
     {
       "id": "bkHC",
-      "code_hash": "4467d7bd957407e62ed284e34ba426b1",
+      "code_hash": "5074015bb60e0994835b07a84a6b2cee",
       "outputs": [
         {
           "type": "data",
@@ -45,32 +45,6 @@
     },
     {
       "id": "PKri",
-      "code_hash": "5074015bb60e0994835b07a84a6b2cee",
-      "outputs": [
-        {
-          "type": "data",
-          "data": {
-            "text/html": "<span class=\"markdown prose dark:prose-invert\"><h2 id=\"visualizations-of-two-heatmaps\">Visualizations of two heatmaps</h2></span>"
-          }
-        }
-      ],
-      "console": []
-    },
-    {
-      "id": "Xref",
-      "code_hash": "06a0bee0c724d221fc49f7c9829ad647",
-      "outputs": [
-        {
-          "type": "data",
-          "data": {
-            "text/html": "<span class=\"markdown prose dark:prose-invert\"><h3 id=\"mc-sample-heatmap\">MC-Sample Heatmap</h3></span>"
-          }
-        }
-      ],
-      "console": []
-    },
-    {
-      "id": "SFPL",
       "code_hash": "28863cb4dd718027e4a886ea43f8ab68",
       "outputs": [
         {
@@ -83,7 +57,7 @@
       "console": []
     },
     {
-      "id": "BYtC",
+      "id": "Xref",
       "code_hash": "dbbcc14ed44f578494b47249d602299d",
       "outputs": [
         {
@@ -96,7 +70,7 @@
       "console": []
     },
     {
-      "id": "RGSE",
+      "id": "SFPL",
       "code_hash": "0ae1d1bf6db941e8530c9930f7a53f56",
       "outputs": [
         {
@@ -109,7 +83,7 @@
       "console": []
     },
     {
-      "id": "Kclp",
+      "id": "BYtC",
       "code_hash": "05f942f944f1234f20e59926bf6023af",
       "outputs": [
         {
@@ -122,8 +96,40 @@
       "console": []
     },
     {
+      "id": "RGSE",
+      "code_hash": "bd62547c509e565d5a8db14a52e8ef18",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": [
+        {
+          "type": "stream",
+          "name": "stderr",
+          "text": "/var/folders/hw/zt9zg7ds179_c08cmvx02npm0000gn/T/marimo_12997/__marimo__cell_SFPL_.py:121: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.\n  plt.tight_layout()\n"
+        }
+      ]
+    },
+    {
+      "id": "Kclp",
+      "code_hash": "bcf554d3a6cb943810ad537f13d197fa",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
       "id": "emfo",
-      "code_hash": "41983eb2da05da5ec196f3012e43bfd5",
+      "code_hash": "71db8c021641b10fc90988c84e9e57a3",
       "outputs": [
         {
           "type": "data",
@@ -142,13 +148,13 @@
     },
     {
       "id": "nWHF",
-      "code_hash": "bcf554d3a6cb943810ad537f13d197fa",
+      "code_hash": "98128cc54c973750767128a96311c116",
       "outputs": [],
       "console": []
     },
     {
       "id": "ImOx",
-      "code_hash": "71db8c021641b10fc90988c84e9e57a3",
+      "code_hash": null,
       "outputs": [
         {
           "type": "data",
@@ -161,7 +167,7 @@
     },
     {
       "id": "AZlp",
-      "code_hash": "7a2406d2b747f9144179f65a0bce82c1",
+      "code_hash": null,
       "outputs": [
         {
           "type": "data",
@@ -174,7 +180,7 @@
     },
     {
       "id": "iLit",
-      "code_hash": "98128cc54c973750767128a96311c116",
+      "code_hash": null,
       "outputs": [
         {
           "type": "data",
@@ -195,6 +201,31 @@
     {
       "id": "PFiv",
       "code_hash": null,
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "vblA",
+      "code_hash": "4467d7bd957407e62ed284e34ba426b1",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "lEQa",
+      "code_hash": "06a0bee0c724d221fc49f7c9829ad647",
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "Hstk",
+      "code_hash": "7a2406d2b747f9144179f65a0bce82c1",
       "outputs": [],
       "console": []
     }

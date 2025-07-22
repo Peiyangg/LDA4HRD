@@ -591,7 +591,7 @@ def _(DMP, metadata, prepare_heatmap_data):
 
 @app.cell
 def _(create_clustered_heatmap, group_colors, multiheader):
-    order_by='clustered' # other options: 'Diagnosis', 'SampleTime', 'Location_int'
+    order_by='Location_int' # other options: 'Diagnosis', 'SampleTime', 'Location_int'
     g, leg = create_clustered_heatmap(multiheader, 
                                     headers_to_color=['Diagnosis','SampleTime','Location_int'],
                                     continuous_headers=['SampleTime'],
